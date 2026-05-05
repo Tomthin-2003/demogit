@@ -1,8 +1,7 @@
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-
-TOKEN = "your-secret-key"
+TOKEN = os.environ.get("phone") 
 command_queue = []
 
 def auth(req):
