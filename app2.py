@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-
+import os
 app = Flask(__name__)
 TOKEN = os.environ.get("phone") 
 command_queue = []
