@@ -4,17 +4,15 @@ import time
 
 app = Flask(__name__)
 
-# 🔐 Token
 TOKEN = os.environ.get("phone")
 
-# 📦 In-memory storage
+if not TOKEN:
+    raise Exception("TOKEN not set!")
+
 command_queue = []
 latest_location = {}
 
 
-# ----------------------------
-# AUTH
-# ----------------------------
 def auth(req):
     return req.headers.get("Authorization") == TOKEN
 
@@ -23,23 +21,19 @@ def error(msg, code=400):
     return jsonify({"error": msg}), code
 
 
-# ----------------------------
-# SEND COMMAND
-# ----------------------------
 @app.route("/send", methods=["POST"])
 def send():
     if not auth(request):
         return error("unauthorized", 403)
 
-    data = request.json
+    data = request.get_json() or {}
     cmd = data.get("command")
 
     if not cmd:
         return error("missing command")
 
-    # create structured command
     command = {
-        "id": int(time.time()),   # unique id
+        "id": int(time.time() * 1000),
         "command": cmd
     }
 
@@ -47,15 +41,9 @@ def send():
 
     print("[QUEUE ADDED]", command)
 
-    return jsonify({
-        "status": "added",
-        "id": command["id"]
-    })
+    return jsonify({"status": "added", "id": command["id"]})
 
 
-# ----------------------------
-# POLL (PHONE)
-# ----------------------------
 @app.route("/poll", methods=["GET"])
 def poll():
     if not auth(request):
@@ -69,9 +57,6 @@ def poll():
     return jsonify({"command": None})
 
 
-# ----------------------------
-# STATUS (FROM PHONE)
-# ----------------------------
 @app.route("/status", methods=["POST"])
 def status():
     if not auth(request):
@@ -79,14 +64,14 @@ def status():
 
     global latest_location
 
-    data = request.json
+    data = request.get_json() or {}
     print("[STATUS RECEIVED]", data)
 
-    # Save GPS if present
     if "lat" in data and "lon" in data:
         latest_location = {
             "lat": data["lat"],
             "lon": data["lon"],
+            "maps": data.get("maps"),   # 🔥 important
             "time": time.time()
         }
 
@@ -95,9 +80,6 @@ def status():
     return jsonify({"ok": True})
 
 
-# ----------------------------
-# GET LOCATION (LAPTOP)
-# ----------------------------
 @app.route("/location", methods=["GET"])
 def location():
     if not auth(request):
@@ -106,9 +88,6 @@ def location():
     return jsonify(latest_location)
 
 
-# ----------------------------
-# ROOT (TEST)
-# ----------------------------
 @app.route("/")
 def home():
     return jsonify({
@@ -117,8 +96,5 @@ def home():
     })
 
 
-# ----------------------------
-# RUN
-# ----------------------------
 if __name__ == "__main__":
     app.run()
