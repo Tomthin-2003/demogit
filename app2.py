@@ -9,8 +9,8 @@ TOKEN = os.environ.get("phone")
 if not TOKEN:
     raise Exception("TOKEN not set!")
 
-command_queue = []
-latest_location = {}
+command_queue = {} #device id
+latest_location = {} #device id location
 
 
 def auth(req):
@@ -28,18 +28,19 @@ def send():
 
     data = request.get_json() or {}
     cmd = data.get("command")
-
-    if not cmd:
-        return error("missing command")
+    device_id = data.get('device_id')
+    if not cmd or not device_id:
+        return error("missing command or not device id")
 
     command = {
         "id": int(time.time() * 1000),
         "command": cmd
     }
+    if device_id not in command_queue:
+        command_queue[device_id] = []
+    command_queue[device_id].append(command)
 
-    command_queue.append(command)
-
-    print("[QUEUE ADDED]", command)
+    print(f"[QUEUE ADDED],{device_id}", command)
 
     return jsonify({"status": "added", "id": command["id"]})
 
@@ -48,10 +49,12 @@ def send():
 def poll():
     if not auth(request):
         return error("unauthorized", 403)
-
-    if command_queue:
+    device_id = request.args.get('device_id')
+    if not device_id:
+        return error('Missing device_id')
+    if device_id in command_queue and command_queue[device_id]:
         cmd = command_queue.pop(0)
-        print("[DISPATCH]", cmd)
+        print(f"[DISPATCH] {device_id}", cmd)
         return jsonify(cmd)
 
     return jsonify({"command": None})
@@ -65,7 +68,11 @@ def status():
     global latest_location
 
     data = request.get_json() or {}
-    print("[STATUS RECEIVED]", data)
+    device_id = data.get('device_id')
+    if not device_id:
+        return error("missing device_id")
+
+    print(f"[STATUS RECEIVED] {device_id}", data)
 
     if "lat" in data and "lon" in data:
         latest_location = {
@@ -75,7 +82,7 @@ def status():
             "time": time.time()
         }
 
-        print("[LOCATION UPDATED]", latest_location)
+        print(f"[LOCATION UPDATED] {device_id}", latest_location)
 
     return jsonify({"ok": True})
 
@@ -84,8 +91,12 @@ def status():
 def location():
     if not auth(request):
         return error("unauthorized", 403)
+    device_id = request.args.get('device_id')
 
-    return jsonify(latest_location)
+    if not device_id:
+        return error("missing device_id")
+
+    return jsonify(latest_location.get(device_id,{}))
 
 
 @app.route("/")
@@ -93,6 +104,7 @@ def home():
     return jsonify({
         "status": "running",
         "queue_size": len(command_queue)
+        "devices":list(command_queue.keys())
     })
 
 
