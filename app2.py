@@ -103,7 +103,7 @@ def location():
 def home():
     return jsonify({
         "status": "running",
-        "queue_size": len(command_queue)
+        "queue_size": len(command_queue),
         "devices":list(command_queue.keys())
     })
 
